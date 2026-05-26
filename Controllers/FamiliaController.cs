@@ -103,5 +103,38 @@ namespace SemilleroGR3.API.Controllers
             await _context.SaveChangesAsync();
             return Ok(new { message = "Tarea actualizada correctamente" });
         }
+
+        // MAUI Endpoint: familia/progreso/{alumnoId}
+        [HttpGet("familia/progreso/{alumnoId}")]
+        public async Task<IActionResult> GetProgresoHijo(int alumnoId)
+        {
+            // 1. Buscamos solo la última evaluación publicada del alumno
+            var ultimaEvaluacion = await _context.EvaluacionRubrica
+                .Include(e => e.Detalles).ThenInclude(d => d.Criterio)
+                .Include(e => e.Detalles).ThenInclude(d => d.Nivel)
+                .Where(e => e.AlumnoId == alumnoId && e.EsPublicada)
+                .OrderByDescending(e => e.FechaEvaluacion)
+                .FirstOrDefaultAsync();
+
+            // 2. Si no hay evaluaciones, devolvemos una lista vacía
+            if (ultimaEvaluacion == null)
+            {
+                return Ok(new List<object>());
+            }
+
+            // 3. Aplanamos el detalle con los nombres exactos que espera tu MAUI
+            var progreso = ultimaEvaluacion.Detalles.Select(d => new
+            {
+                CriterioId = d.CriterioId,
+                NombreCriterio = d.Criterio != null ? d.Criterio.Nombre : "Sin Criterio",
+
+                // Extraemos el código corto (Ej: "1", "EP", "L") para tu convertidor de colores
+                CodigoLogro = d.Nivel != null ? d.Nivel.Codigo : "N/A",
+
+                Observacion = d.ObservacionEspecifica
+            }).ToList();
+
+            return Ok(progreso);
+        }
     }
 }
